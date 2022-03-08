@@ -1,0 +1,27 @@
+%load two time series
+configPath
+dataDir      = getDatasetsDirUCR;                                                
+datasetsName = getDatasetNamesUCRALL;
+nDatasets    = numel(datasetsName);
+
+datasetIdx = 59; % { 6, 21,23, 27, 51, 66}
+fprintf(1, 'processing dataset: %s...\n', datasetsName{datasetIdx});
+ts = readucr(datasetIdx, 'train', dataDir);
+nInstances = size(ts,1);
+ts_data1   = ts(31,2:74);
+ts_data2   = ts(34,2:74);
+ts_labels  = ts(:,1);
+
+seqlen = 20;
+nlevel = 3;
+wvl1 = modwt(ts_data1,'haar',nlevel);
+wvl2 = modwt(ts_data2,'haar',nlevel);
+detail_coef1  = wvl1(nlevel,:);
+detail_coef2  = wvl2(nlevel,:);
+
+np = zNormalizeTS(detail_coef1);
+nq = zNormalizeTS(detail_coef2);
+
+[~,~,~,align_shapeDTW]  = shapeDTW(np(:),nq(:), seqlen);
+plotElasticMatching(ts_data1, ts_data2, align_shapeDTW);
+title('SSDTW w/o segmentation');
