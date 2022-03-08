@@ -1,0 +1,84 @@
+function MeanDiv = ComputeMDevEr(align_Path,GroundTruth,l_ts,len_path)
+%l_ts --legth of ts in the horizontal axe
+% len_path -- length of alignment path
+
+
+ total_div = 0; %initializing 
+ % for every point of horizontal ts   
+ for a=1:l_ts  
+  
+     Elem1 = [];
+     Elem2 = [];
+     flag =1; %assistant logical variable
+     ind1 = 0;
+     ind2 = 0;
+     %In every iteration of a, we find and pass to Elem1 the points tha are
+     %equal to a- i.e those which correnspond to a horizontal line in path 
+     
+     for k = 1:len_path
+        
+                 if align_Path(k,2) == a 
+    
+                     Elem1 = [Elem1 ; align_Path(k,1) a];
+                                      ind1 = 1;
+                 end
+                 if (ind1== 1 && k+1<=len_path && align_Path(k+1,2) ~= a)
+                                  break
+                 end
+     end
+     %same again for Ground Truth path and Elem2   
+     for t =1:length(GroundTruth(:,1))
+            
+          if GroundTruth(t,2)== a
+               Elem2 = [Elem2 ; GroundTruth(t,1) a ];
+               ind2 = 1;
+          end
+          if ind2 == 1 && t+1 <=length(GroundTruth(:,1)) && GroundTruth(t+1,2) ~= a
+                              break
+          end
+     end
+     %seek for the min and max values of Elem1                   
+     Dim_E01= length(Elem1(:,1));
+     Dim_E02 = length(Elem2(:,1));
+     minx1 = Elem1(1,1);
+     maxx1 = Elem1(end,1);
+     
+    %if the matrices have a common zeygos then paths are intersecting at the current time value 
+    % (a), so apostasi =0. Then flag =0 and we move to the next a via
+    % continue 
+    
+     for j =1 : Dim_E01
+     
+         for s =1 :Dim_E02
+         
+             if Elem1(j,1) == Elem2(s,1)
+                    flag=0;
+                    break
+             end
+         end               
+                       
+        
+    end
+     
+    if flag == 0 
+       continue
+    end
+            
+    % min and max values of Elem2                  
+    minx2 = Elem2(1,1);
+    maxx2 = Elem2(end,1);    
+   
+    %distance between paths 
+    option1 = abs(maxx1 - minx2); 
+    option2 = abs(maxx2 - minx1 );
+                    
+      if option1 < option2 
+          total_div = total_div + option1;
+            
+      else
+         total_div = total_div + option2;
+            
+      end
+ end
+  
+ MeanDiv = total_div /len_path ;
