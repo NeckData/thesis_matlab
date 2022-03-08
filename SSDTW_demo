@@ -1,0 +1,188 @@
+%load two time series
+configPath
+dataDir      = getDatasetsDirUCR;                                                
+datasetsName = getDatasetNamesUCRALL;
+nDatasets    = numel(datasetsName);
+
+datasetIdx = 59; % { 6, 21,23, 27, 51, 66}
+fprintf(1, 'processing dataset: %s...\n', datasetsName{datasetIdx});
+ts = readucr(datasetIdx, 'train', dataDir);
+nInstances = size(ts,1);
+ts_data1   = ts(31,2:74);
+ts_data2   = ts(34,2:74);
+ts_labels  = ts(:,1);
+nlevel = 3;
+wvl=modwt(ts_data2,'haar',nlevel);
+detail_coef2=wvl(nlevel,:);
+
+seqlen = 20; 
+[p1,Matr_det1] =  WaveletDivDetail_Coef(ts_data1,'haar',3);
+%[p2,Matr_det2 ]=  WaveletDivDetail_Coef(ts_data2,'haar',3);
+%vec_log1 = Matr_det1(:,1)~=0;
+%vec_log2 = Matr_det2(:,1)~=0;
+nseg1     =  length(Matr_det1((Matr_det1(:,1)~=0),1))-1;
+%nseg2     =  length(Matr_det2((Matr_det2(:,1)~=0),1))-1;
+same_segbuttom = 0;
+Matr_det1_new = []; %only detail coef
+Matr_det2_new = []; % -#-
+Matr_det2 = [];
+Matr_det1_new45 = [];
+Matr_det2_new45 = [];
+tot_segm_points = [];
+
+Matr_det1 =Matr_det1(2:end,:);
+
+l_ts = length(ts_data1);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%concatanate series of detail coef (starting from the last)to achieve same number of segm per signal
+%%%%-keep the least number of segments
+
+% arxi1 = 1;
+% arxi2 = 1;
+% 
+% if nseg1>nseg2
+%     
+%     same_segbuttom = nseg1-nseg2;
+%     %nseg1 = nseg2;
+%     Matr_det2_new = Matr_det2 (2:end,:);
+%     
+%     for j = 1:nseg2-1
+%         Matr_det1_new(j,:) = Matr_det1(j+1,:);
+%     end
+%     
+%     telos = length(Matr_det1( nseg2+1,:));
+%     
+%     for h = nseg2:nseg1  
+%       
+%        Matr_det1_new(nseg2,arxi1:telos) = Matr_det1(h+1,:);
+%        arxi1  = telos+1 ;
+%        telos = arxi1 + length(Matr_det1(h+1,:))-1  ; 
+%     end
+%     
+%     nseg1 = nseg2; 
+%     
+% elseif nseg1<nseg2
+%     
+%     same_segbuttom = nseg2-nseg1;
+%     log_v_nz = Matr_det1(:,1)~=0 ; 
+%     Matr_det1_new  = Matr_det1 (log_v_nz,:);
+%     Matr_det1_new = Matr_det1_new(2:end,:);
+%     
+%     for j = 1:nseg1-1
+%         Matr_det2_new(j,:) = Matr_det2(j+1,:);
+%     end
+%     
+%     telos = length(Matr_det2(nseg1+1,(Matr_det2( nseg1+1,:)~=0)));
+%     
+%     for h = nseg1:nseg2  
+%       
+%        Matr_det2_new(nseg1,arxi2:telos) = Matr_det2(h+1,(Matr_det2(h+1,:)~=0));
+%        arxi2  = telos+1 ;
+%        telos =arxi2 + length(Matr_det2(h+1,(Matr_det2(h+1,:)~=0)))-1 ; 
+%     end         
+%     nseg2 = nseg1;
+% end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%take points from WaveletDivDetail function,check if there are segments with less than 3 values and form matrix Matr_det2
+%%containing corresponding segments of detail_coef2 
+p1 = p1(p1(:)~=0);
+n_points = length(p1(:));
+
+if p1(1)~=1
+    
+    tot_segm_points(1)=0;           %should start from 0 rather than 1   
+    tot_segm_points(2:n_points+1)=p1;  
+    
+else
+     tot_segm_points(1:n_points)=p1;
+     tot_segm_points(1)=0;           %   -#-
+     
+end
+  
+  le_tot_se = length(tot_segm_points);
+  
+  if p1(end)~=l_ts
+      tot_segm_points(le_tot_se+1)=l_ts; 
+  end
+
+ 
+le_tot_se = length(tot_segm_points);
+
+for i=1:le_tot_se-1 
+    
+          row_len = tot_segm_points(i+1) - tot_segm_points(i);
+          
+         % if row_len <= 3 
+              
+          Matr_det2(i,1:row_len) = detail_coef2(tot_segm_points(i)+1:tot_segm_points(i+1));
+    
+end
+
+%scan all rows and assign those with less than 3 values  to  the next or
+%the previous row
+  for d = 1: length(Matr_det1(:,1))
+      
+      %length(Matr_det1(:,1))
+      le_co  = length(Matr_det1(d,Matr_det1(d,:)~=0));
+      
+      if  le_co > 3
+          
+          logi_row(d) = true; 
+          
+      else
+           logi_row(d) = false;
+           %le_co  = length(Matr_det1(d,Matr_det1(d,:)~=0));
+         
+           if  length(Matr_det1(:,1))>= d+1
+              
+                  le_nco = length(Matr_det1(d+1,Matr_det1(d+1,:)~=0)); 
+                  Matr_det1(d+1,1+le_co:le_co+le_nco) = Matr_det1(d+1,1:le_nco);    %metafora twn timwn ths epomenis grammis, le_co theseis pio deksia 
+                  Matr_det1(d+1,1 : le_co) = Matr_det1(d,1:le_co);
+                  
+                  Matr_det2(d+1,1+le_co:le_co+le_nco) = Matr_det2(d+1,1:le_nco);  %metafora twn timwn ths epomenis grammis, le_co theseis pio deksia
+                  Matr_det2(d+1,1 : le_co) = Matr_det2(d,1:le_co);   
+           else
+                  le_pco = length(Matr_det1(d-1,Matr_det1(d-1,:)~=0));
+                  Matr_det1(d-1,le_pco + 1 : le_pco + le_co) = Matr_det1(d,1:le_co);
+                  Matr_det2(d-1,le_pco + 1 : le_pco + le_co) = Matr_det2(d,1:le_co);
+           end
+      end
+      
+  end
+  
+  Matr_det1_new45(:,:) = Matr_det1(logi_row(:)== true,:);
+  
+  Matr_det2_new45(:,:) = Matr_det2(logi_row(:)== true,:);
+
+
+nseg = length(Matr_det1_new45(:,1));
+
+%align segments with ShapeDtw
+total_warp_path = [];
+start = 1;
+last_num = 0; % initialization of warping path's last value index for every segment 
+ for k = 1:nseg
+    np = zNormalizeTS(Matr_det1_new45(k,Matr_det1_new45(k,:)~=0));
+    nq = zNormalizeTS(Matr_det2_new45(k,Matr_det2_new45(k,:)~=0)); 
+    [~,~,~,align_SDtw] = shapeDTW(np(:),nq(:),seqlen);
+    l_e = length(align_SDtw(:,1));
+    plotElasticMatching(np, nq, align_SDtw);
+    align_SDtw_edit = align_SDtw(:,:)+ last_num ;  %% thelei ki allo
+    title('shapeDTW');
+    total_warp_path(start:(start+l_e-1),:) = align_SDtw_edit ;
+    start    = start+l_e;
+    last_num = align_SDtw(end,1)+last_num;
+ end
+ 
+ %get detail coef vectors of the original time series and plot warping path
+ wvl_1 = modwt(ts_data1,'haar',3);
+ detail_coef_1 = wvl_1(3,:);
+ %wvl_2 = modwt(ts_data1,'haar',3);
+ %detail_coef_2 = wvl_2(3,:);
+ plotElasticMatching(ts_data1, ts_data2, total_warp_path);
+ title('SSDtw with scale driven segmentation ');
