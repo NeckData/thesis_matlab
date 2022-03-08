@@ -1,0 +1,182 @@
+%load two time series
+configPath
+dataDir      = getDatasetsDirUCR;                                                
+datasetsName = getDatasetNamesUCRALL;
+nDatasets    = numel(datasetsName);
+
+datasetIdx = 59; % { 6, 21,23, 27, 51, 66}
+fprintf(1, 'processing dataset: %s...\n', datasetsName{datasetIdx});
+ts = readucr(datasetIdx, 'train', dataDir);
+nInstances = size(ts,1);
+ts_data1   = ts(31,2:74);
+ts_data2   = ts(34,2:74);
+ts_labels  = ts(:,1);
+
+seqlen = 20;
+nlevel = 3;
+wvl1 = modwt(ts_data1,'haar',nlevel);
+wvl2 = modwt(ts_data2,'haar',nlevel);
+detail_coef1  = wvl1(nlevel,:);
+detail_coef2  = wvl2(nlevel,:);
+
+%%[p1,matr_det1] = Cut_points(detail_coef1);
+%%[p2,matr_det2] = Cut_points(detail_coef2);
+
+%%%%%%% ---->cut  
+
+ matr_d1 = [];
+ matr_d2 = [];
+ points = [];
+ points_max = [];
+  
+  % Euresi max k min points kai apothikeusi se pinakes points efoson
+  % ksepernoun mia posostiaia metavoli
+  i=2;
+  le_ts = length(detail_coef1);
+  kk = 1;
+  kkm=1;
+  
+  while i<le_ts
+      
+       if detail_coef1(i)>= detail_coef1(i-1)
+            
+            raise = 0;
+            init_val = detail_coef1(i-1);
+            while i<= le_ts && detail_coef1(i)>= detail_coef1(i-1) 
+                
+                raise = raise + (detail_coef1(i)- detail_coef1(i-1));
+                i = i+1;
+                %if i> le_ts 
+                %    break
+               % end
+            end
+            percent = (raise/abs(init_val))*100; 
+            %if percent >=30
+            if raise >= 0.05
+                points_max(kkm)= i-1;
+                kkm = kkm+1;
+            end
+                
+       end
+       
+       if i<= le_ts  && detail_coef1(i) < detail_coef1(i-1)
+           
+           fall = 0;
+           init_val = detail_coef1(i-1);
+           while detail_coef1(i) < detail_coef1(i-1) 
+               
+                fall=fall + (detail_coef1(i-1)- detail_coef1(i));
+                i = i+1;
+                if i>le_ts
+                    break
+                end
+           end
+           percent = (fall / abs(init_val))*100;
+           %if percent >= 30
+           if fall >= 0.05
+               points(kk)= i-1;
+               kk=kk + 1;
+           end
+       end
+  end
+  
+  % Xwrismos tou detail coefficient me vasi ta points kai apothikeusi ston pinaka
+  % matr_d
+  
+  le_p = length(points_max);
+  matr_d1(1,1:points_max(1)) = detail_coef1(1:points_max(1)) ;
+  tt = points_max(1) + 1;
+  r = 2 ;
+ 
+  
+  while tt < le_ts && r<= le_p
+      
+        matr_d1(r,1:(points_max(r)-tt+1)) = detail_coef1(tt:points_max(r));
+        tt = points_max(r) + 1;
+        r = r+1;
+  end 
+  
+  
+ %an h teleutaih timh tou pinaka points den sympiptei me thn thn
+  %teleutaia timh toy det_coef, tote prosthetoyme sthn teleutaia grammi toy
+  %pinaka  matr_d to segment apo to teleytaio cut point mexri to telos ths
+  %t.s.
+  
+if  (tt-1) ~= detail_coef1(le_ts)
+    
+    if length(detail_coef1(tt:end)) < 3
+        
+       matr_d1(r-1,tt-points_max(r-2):tt-points_max(r-2)+(le_ts -tt +1)-1) = detail_coef1(tt:end);
+       %%matr_d1(r-1,:) = detail_coef1(tt:end);
+    else
+        
+       matr_d1(r,1:(le_ts -tt +1)) = detail_coef1(tt:end);
+    end
+end  
+  
+%%%%%%cut   <-----
+
+ matr_d2(1,1:points_max(1)) = detail_coef2(1:points_max(1)) ;
+ tt = points_max(1) + 1;
+ r = 2 ;
+ 
+  
+  while tt < le_ts && r<= le_p
+      
+        matr_d2(r,1:(points_max(r)-tt+1)) = detail_coef2(tt:points_max(r));
+        tt = points_max(r) + 1;
+        r = r+1;
+  end        
+ 
+  %an h teleutaih timh tou pinaka points den sympiptei me thn thn
+  %teleutaia timh toy det_coef, tote prosthetoyme sthn teleutaia grammi toy
+  %pinaka  matr_d to segment apo to teleytaio cut point mexri to telos ths
+  %t.s.
+  
+  if  (tt-1) ~= detail_coef2(le_ts)
+    
+    if length(detail_coef2(tt:end)) < 3
+        
+        matr_d2(r-1,tt-points_max(r-2):tt-points_max(r-2)+(le_ts -tt +1)-1) = detail_coef2(tt:end);
+       %%matr_d2(r-1,:) = detail_coef2(tt:end);
+    else
+        
+       matr_d2(r,1:(le_ts -tt +1)) = detail_coef2(tt:end);
+    end
+end  
+
+  
+  
+%align segments with ShapeDtw
+
+total_warp_path = [];
+start = 1;
+last_num = 0; % arxikopoihsh deikti teleutaias timhs tou warping path kathe segment 
+ for k = 1:length(matr_d2(:,1))
+     
+    np = zNormalizeTS(matr_d1(k,matr_d1(k,:)~=0));
+    nq = zNormalizeTS(matr_d2(k,matr_d2(k,:)~=0)); 
+    [~,~,~,align_SDtw] = shapeDTW(np(:),nq(:),seqlen);
+    l_e = length(align_SDtw(:,1));
+    plotElasticMatching(np, nq, align_SDtw);
+    align_SDtw_edit = align_SDtw(:,:)+ last_num ;  
+    title('shapeDTW');
+    total_warp_path(start:(start+l_e-1),:) = align_SDtw_edit(:,:) ;   
+    start    = start+l_e;
+    last_num = align_SDtw(end,1)+last_num;
+ end
+ 
+ 
+ %get detail coef vectors of the original time series and plot warping path
+ 
+ 
+ plotElasticMatching(detail_coef1, detail_coef2, total_warp_path);
+ title('SSDtw in detail coef');
+ 
+%transfer of the warping path to the original ts
+
+plotElasticMatching(ts_data1, ts_data2, total_warp_path);
+ title('SSDtw(original TS) w max points driv. segm');  
+  
+  
+  
